@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg-primary: #0a0a0b;
+  --color-bg-card: #18181b;
+  --color-bg-card-hover: #1f1f23;
+  --color-accent: #6366f1;
+  --color-accent-hover: #4f46e5;
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-border: #27272a;
+  --color-border-light: #3f3f46;
+  --color-zone-fill: rgba(99, 102, 241, 0.15);
+  --color-zone-border: #6366f1;
+  --color-danger: #ef4444;
+  --color-success: #22c55e;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #27272a #0a0a0b;
+}
+
+body {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans), sans-serif;
+}
+
+.signature-zone {
+  border: 2px dashed var(--color-zone-border);
+  background: var(--color-zone-fill);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.signature-zone:hover {
+  background: rgba(99, 102, 241, 0.25);
+}
