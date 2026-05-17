@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { SignatureZone, Document as DocType } from "@/lib/types";
@@ -21,6 +21,9 @@ export default function EditPage() {
   const [drawCurrent, setDrawCurrent] = useState<{ x: number; y: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [draggingZone, setDraggingZone] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const didDrag = useRef(false);
 
   useEffect(() => {
     fetch(`/api/documents/${id}`)
@@ -34,19 +37,56 @@ export default function EditPage() {
   }, [id]);
 
   const getRelativePos = useCallback(
-    (e: React.MouseEvent | React.TouchEvent, dims: { width: number; height: number }) => {
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    (e: React.MouseEvent | React.TouchEvent, el: HTMLElement) => {
+      const rect = el.getBoundingClientRect();
+      const clientX = "touches" in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+      const clientY = "touches" in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
       return {
-        x: ((clientX - rect.left) / dims.width) * 100,
-        y: ((clientY - rect.top) / dims.height) * 100,
+        x: ((clientX - rect.left) / rect.width) * 100,
+        y: ((clientY - rect.top) / rect.height) * 100,
       };
     },
     []
   );
 
-  const finishDrawing = useCallback(() => {
+  const handleOverlayMouseDown = useCallback(
+    (e: React.MouseEvent, pageIndex: number) => {
+      const pos = getRelativePos(e, e.currentTarget as HTMLElement);
+      setDrawing(true);
+      setDrawPage(pageIndex);
+      setDrawStart(pos);
+      setDrawCurrent(pos);
+    },
+    [getRelativePos]
+  );
+
+  const handleOverlayMouseMove = useCallback(
+    (e: React.MouseEvent, pageIndex: number) => {
+      if (draggingZone) {
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100 - dragOffset.x;
+        const y = ((e.clientY - rect.top) / rect.height) * 100 - dragOffset.y;
+        didDrag.current = true;
+        setZones((prev) =>
+          prev.map((z) =>
+            z.id === draggingZone
+              ? { ...z, x: Math.max(0, Math.min(100 - z.width, x)), y: Math.max(0, Math.min(100 - z.height, y)) }
+              : z
+          )
+        );
+        return;
+      }
+      if (!drawing || drawPage !== pageIndex) return;
+      setDrawCurrent(getRelativePos(e, e.currentTarget as HTMLElement));
+    },
+    [draggingZone, dragOffset, drawing, drawPage, getRelativePos]
+  );
+
+  const handleOverlayMouseUp = useCallback(() => {
+    if (draggingZone) {
+      setDraggingZone(null);
+      return;
+    }
     if (drawing && drawStart && drawCurrent && drawPage !== null) {
       const x = Math.min(drawStart.x, drawCurrent.x);
       const y = Math.min(drawStart.y, drawCurrent.y);
@@ -60,7 +100,34 @@ export default function EditPage() {
     setDrawStart(null);
     setDrawCurrent(null);
     setDrawPage(null);
-  }, [drawing, drawStart, drawCurrent, drawPage]);
+  }, [draggingZone, drawing, drawStart, drawCurrent, drawPage]);
+
+  const handleZoneMouseDown = useCallback(
+    (e: React.MouseEvent, zoneId: string) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const zone = zones.find((z) => z.id === zoneId);
+      if (!zone) return;
+      const overlayEl = (e.currentTarget as HTMLElement).parentElement!;
+      const rect = overlayEl.getBoundingClientRect();
+      didDrag.current = false;
+      setDraggingZone(zoneId);
+      setDragOffset({
+        x: ((e.clientX - rect.left) / rect.width) * 100 - zone.x,
+        y: ((e.clientY - rect.top) / rect.height) * 100 - zone.y,
+      });
+    },
+    [zones]
+  );
+
+  const handleZoneClick = useCallback(
+    (e: React.MouseEvent, zoneId: string) => {
+      e.stopPropagation();
+      if (didDrag.current) return;
+      setZones((prev) => prev.filter((z) => z.id !== zoneId));
+    },
+    []
+  );
 
   const handleSave = async () => {
     setSaving(true);
@@ -122,30 +189,22 @@ export default function EditPage() {
       </div>
 
       <div className="bg-bg-card/50 border-b border-border px-4 py-2 text-center text-text-secondary text-sm flex-shrink-0">
-        Draw rectangles on the PDF to mark where signatures should go. Click a zone to delete it.
+        Draw rectangles to mark signature areas. Drag to reposition. Click to delete.
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0">
         <PDFViewer
           fileUrl={doc.file_url}
           onTotalPages={setTotalPages}
           overlay={(pageIndex, dims) => (
             <div
               className="absolute inset-0 cursor-crosshair"
-              onMouseDown={(e) => {
-                const pos = getRelativePos(e, dims);
-                setDrawing(true);
-                setDrawPage(pageIndex);
-                setDrawStart(pos);
-                setDrawCurrent(pos);
-              }}
-              onMouseMove={(e) => {
-                if (!drawing || drawPage !== pageIndex) return;
-                setDrawCurrent(getRelativePos(e, dims));
-              }}
-              onMouseUp={finishDrawing}
+              onMouseDown={(e) => handleOverlayMouseDown(e, pageIndex)}
+              onMouseMove={(e) => handleOverlayMouseMove(e, pageIndex)}
+              onMouseUp={handleOverlayMouseUp}
+              onMouseLeave={handleOverlayMouseUp}
               onTouchStart={(e) => {
-                const pos = getRelativePos(e, dims);
+                const pos = getRelativePos(e, e.currentTarget as HTMLElement);
                 setDrawing(true);
                 setDrawPage(pageIndex);
                 setDrawStart(pos);
@@ -153,36 +212,38 @@ export default function EditPage() {
               }}
               onTouchMove={(e) => {
                 if (!drawing || drawPage !== pageIndex) return;
-                setDrawCurrent(getRelativePos(e, dims));
+                setDrawCurrent(getRelativePos(e, e.currentTarget as HTMLElement));
               }}
-              onTouchEnd={finishDrawing}
+              onTouchEnd={handleOverlayMouseUp}
             >
               {zones
                 .filter((z) => z.page === pageIndex)
                 .map((zone) => (
                   <div
                     key={zone.id}
-                    className="signature-zone absolute flex items-center justify-center group"
+                    className={`absolute flex items-center justify-center group border-2 border-dashed transition-colors ${
+                      draggingZone === zone.id
+                        ? "border-accent bg-accent/20 cursor-grabbing"
+                        : "border-zone-border bg-zone-fill hover:bg-accent/25 hover:border-accent cursor-grab"
+                    }`}
                     style={{
                       left: `${zone.x}%`,
                       top: `${zone.y}%`,
                       width: `${zone.width}%`,
                       height: `${zone.height}%`,
                     }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setZones((prev) => prev.filter((z) => z.id !== zone.id));
-                    }}
+                    onMouseDown={(e) => handleZoneMouseDown(e, zone.id)}
+                    onClick={(e) => handleZoneClick(e, zone.id)}
                   >
-                    <span className="text-accent text-xs opacity-0 group-hover:opacity-100 transition-opacity select-none">
-                      Click to remove
+                    <span className="text-accent/60 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity select-none pointer-events-none">
+                      click to remove
                     </span>
                   </div>
                 ))}
 
               {drawing && drawStart && drawCurrent && drawPage === pageIndex && (
                 <div
-                  className="absolute border-2 border-accent bg-zone-fill pointer-events-none"
+                  className="absolute border-2 border-accent bg-zone-fill pointer-events-none rounded-sm"
                   style={{
                     left: `${Math.min(drawStart.x, drawCurrent.x)}%`,
                     top: `${Math.min(drawStart.y, drawCurrent.y)}%`,

@@ -34,11 +34,13 @@ export default function SignPage() {
   const handleSign = async (dataUrl: string) => {
     setSubmitting(true);
     try {
-      await fetch(`/api/documents/${id}`, {
+      const res = await fetch(`/api/documents/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ signature_data: dataUrl, status: "signed" }),
       });
+      const updated = await res.json();
+      setDoc(updated);
       setSignatureData(dataUrl);
       setShowModal(false);
     } catch {
@@ -130,7 +132,7 @@ export default function SignPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0">
         <PDFViewer
           fileUrl={doc.file_url}
           overlay={(pageIndex) => (

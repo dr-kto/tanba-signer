@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { SignatureZone, Document as DocType } from "@/lib/types";
@@ -17,6 +17,8 @@ export default function ReviewPage() {
   const [downloading, setDownloading] = useState(false);
   const [draggingZone, setDraggingZone] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const zonesRef = useRef(zones);
+  zonesRef.current = zones;
 
   const fetchDoc = useCallback(() => {
     fetch(`/api/documents/${id}`)
@@ -34,10 +36,12 @@ export default function ReviewPage() {
   }, [fetchDoc]);
 
   const handleDragStart = useCallback(
-    (e: React.MouseEvent, zoneId: string, overlayEl: HTMLElement) => {
+    (e: React.MouseEvent, zoneId: string) => {
       e.stopPropagation();
+      e.preventDefault();
       const zone = zones.find((z) => z.id === zoneId);
       if (!zone) return;
+      const overlayEl = (e.currentTarget as HTMLElement).parentElement!;
       const rect = overlayEl.getBoundingClientRect();
       setDraggingZone(zoneId);
       setDragOffset({
@@ -71,9 +75,9 @@ export default function ReviewPage() {
     await fetch(`/api/documents/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ signature_zones: zones }),
+      body: JSON.stringify({ signature_zones: zonesRef.current }),
     });
-  }, [draggingZone, id, zones]);
+  }, [draggingZone, id]);
 
   const handleDownload = async () => {
     if (!doc?.signature_data) return;
@@ -175,10 +179,10 @@ export default function ReviewPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0">
         <PDFViewer
           fileUrl={doc.file_url}
-          overlay={(pageIndex, dims) => (
+          overlay={(pageIndex) => (
             <div
               className="absolute inset-0"
               onMouseMove={handleDragMove}
@@ -190,8 +194,12 @@ export default function ReviewPage() {
                 .map((zone) => (
                   <div
                     key={zone.id}
-                    className={`absolute border-2 border-dashed border-zone-border flex items-center justify-center overflow-hidden ${
-                      isSigned ? "cursor-grab active:cursor-grabbing" : ""
+                    className={`absolute border-2 border-dashed flex items-center justify-center overflow-hidden transition-colors ${
+                      isSigned
+                        ? draggingZone === zone.id
+                          ? "border-accent cursor-grabbing shadow-lg"
+                          : "border-zone-border hover:border-accent cursor-grab"
+                        : "border-zone-border"
                     }`}
                     style={{
                       left: `${zone.x}%`,
@@ -200,9 +208,7 @@ export default function ReviewPage() {
                       height: `${zone.height}%`,
                     }}
                     onMouseDown={(e) => {
-                      if (isSigned) {
-                        handleDragStart(e, zone.id, e.currentTarget.parentElement as HTMLElement);
-                      }
+                      if (isSigned) handleDragStart(e, zone.id);
                     }}
                   >
                     {isSigned && doc.signature_data ? (
