@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { SignatureZone, Document as DocType } from "@/lib/types";
@@ -13,15 +13,14 @@ export default function EditPage() {
   const router = useRouter();
   const [doc, setDoc] = useState<DocType | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [zones, setZones] = useState<SignatureZone[]>([]);
   const [drawing, setDrawing] = useState(false);
+  const [drawPage, setDrawPage] = useState<number | null>(null);
   const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
   const [drawCurrent, setDrawCurrent] = useState<{ x: number; y: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch(`/api/documents/${id}`)
@@ -46,6 +45,22 @@ export default function EditPage() {
     },
     []
   );
+
+  const finishDrawing = useCallback(() => {
+    if (drawing && drawStart && drawCurrent && drawPage !== null) {
+      const x = Math.min(drawStart.x, drawCurrent.x);
+      const y = Math.min(drawStart.y, drawCurrent.y);
+      const width = Math.abs(drawCurrent.x - drawStart.x);
+      const height = Math.abs(drawCurrent.y - drawStart.y);
+      if (width > 2 && height > 2) {
+        setZones((prev) => [...prev, { id: uuidv4(), page: drawPage, x, y, width, height }]);
+      }
+    }
+    setDrawing(false);
+    setDrawStart(null);
+    setDrawCurrent(null);
+    setDrawPage(null);
+  }, [drawing, drawStart, drawCurrent, drawPage]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -84,7 +99,6 @@ export default function EditPage() {
 
   return (
     <div className="flex-1 flex flex-col">
-      {/* Header */}
       <div className="h-14 border-b border-border bg-bg-card flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
           <button onClick={() => router.push("/")} className="text-text-secondary hover:text-text-primary transition-colors">
@@ -93,9 +107,7 @@ export default function EditPage() {
             </svg>
           </button>
           <span className="font-medium truncate max-w-[200px]">{doc.file_name}</span>
-          <span className="text-text-secondary text-sm">
-            Page {currentPage + 1} / {totalPages}
-          </span>
+          <span className="text-text-secondary text-sm">{totalPages} pages</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-text-secondary text-sm">{zones.length} zone{zones.length !== 1 ? "s" : ""}</span>
@@ -109,71 +121,41 @@ export default function EditPage() {
         </div>
       </div>
 
-      {/* Hint */}
       <div className="bg-bg-card/50 border-b border-border px-4 py-2 text-center text-text-secondary text-sm">
         Draw rectangles on the PDF to mark where signatures should go. Click a zone to delete it.
       </div>
 
-      {/* PDF with overlay */}
       <PDFViewer
         fileUrl={doc.file_url}
-        currentPage={currentPage}
-        onPageChange={setCurrentPage}
         onTotalPages={setTotalPages}
-        containerRef={containerRef}
         overlay={(pageIndex, dims) => (
           <div
             className="absolute inset-0 cursor-crosshair"
             onMouseDown={(e) => {
               const pos = getRelativePos(e, dims);
               setDrawing(true);
+              setDrawPage(pageIndex);
               setDrawStart(pos);
               setDrawCurrent(pos);
             }}
             onMouseMove={(e) => {
-              if (!drawing) return;
+              if (!drawing || drawPage !== pageIndex) return;
               setDrawCurrent(getRelativePos(e, dims));
             }}
-            onMouseUp={() => {
-              if (drawing && drawStart && drawCurrent) {
-                const x = Math.min(drawStart.x, drawCurrent.x);
-                const y = Math.min(drawStart.y, drawCurrent.y);
-                const width = Math.abs(drawCurrent.x - drawStart.x);
-                const height = Math.abs(drawCurrent.y - drawStart.y);
-                if (width > 2 && height > 2) {
-                  setZones((prev) => [...prev, { id: uuidv4(), page: pageIndex, x, y, width, height }]);
-                }
-              }
-              setDrawing(false);
-              setDrawStart(null);
-              setDrawCurrent(null);
-            }}
+            onMouseUp={finishDrawing}
             onTouchStart={(e) => {
               const pos = getRelativePos(e, dims);
               setDrawing(true);
+              setDrawPage(pageIndex);
               setDrawStart(pos);
               setDrawCurrent(pos);
             }}
             onTouchMove={(e) => {
-              if (!drawing) return;
+              if (!drawing || drawPage !== pageIndex) return;
               setDrawCurrent(getRelativePos(e, dims));
             }}
-            onTouchEnd={() => {
-              if (drawing && drawStart && drawCurrent) {
-                const x = Math.min(drawStart.x, drawCurrent.x);
-                const y = Math.min(drawStart.y, drawCurrent.y);
-                const width = Math.abs(drawCurrent.x - drawStart.x);
-                const height = Math.abs(drawCurrent.y - drawStart.y);
-                if (width > 2 && height > 2) {
-                  setZones((prev) => [...prev, { id: uuidv4(), page: pageIndex, x, y, width, height }]);
-                }
-              }
-              setDrawing(false);
-              setDrawStart(null);
-              setDrawCurrent(null);
-            }}
+            onTouchEnd={finishDrawing}
           >
-            {/* Existing zones on this page */}
             {zones
               .filter((z) => z.page === pageIndex)
               .map((zone) => (
@@ -197,8 +179,7 @@ export default function EditPage() {
                 </div>
               ))}
 
-            {/* Drawing preview */}
-            {drawing && drawStart && drawCurrent && (
+            {drawing && drawStart && drawCurrent && drawPage === pageIndex && (
               <div
                 className="absolute border-2 border-accent bg-zone-fill pointer-events-none"
                 style={{

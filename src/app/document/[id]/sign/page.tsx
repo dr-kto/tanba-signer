@@ -12,10 +12,8 @@ export default function SignPage() {
   const { id } = useParams<{ id: string }>();
   const [doc, setDoc] = useState<DocType | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
   const [showModal, setShowModal] = useState(false);
-  const [signed, setSigned] = useState(false);
+  const [signatureData, setSignatureData] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -23,7 +21,9 @@ export default function SignPage() {
       .then((r) => r.json())
       .then((data) => {
         setDoc(data);
-        if (data.status === "signed") setSigned(true);
+        if (data.status === "signed" && data.signature_data) {
+          setSignatureData(data.signature_data);
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -37,7 +37,7 @@ export default function SignPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ signature_data: dataUrl, status: "signed" }),
       });
-      setSigned(true);
+      setSignatureData(dataUrl);
       setShowModal(false);
     } catch {
       alert("Failed to submit signature");
@@ -62,41 +62,28 @@ export default function SignPage() {
     );
   }
 
-  if (signed) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4">
-        <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center">
-          <svg className="w-8 h-8 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-        <h2 className="text-2xl font-semibold">Document Signed</h2>
-        <p className="text-text-secondary">The document has been signed successfully.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex-1 flex flex-col">
-      {/* Header */}
       <div className="h-14 border-b border-border bg-bg-card flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
           <span className="font-medium truncate max-w-[200px]">{doc.file_name}</span>
-          <span className="text-text-secondary text-sm">
-            Page {currentPage + 1} / {totalPages}
-          </span>
+          {signatureData && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-success/20 text-success">Signed</span>
+          )}
         </div>
         <span className="text-text-secondary text-sm">
           {doc.signature_zones.length} signature{doc.signature_zones.length !== 1 ? "s" : ""} required
         </span>
       </div>
 
-      {/* PDF with signature zones highlighted */}
+      {signatureData && (
+        <div className="bg-success/10 border-b border-success/30 px-4 py-3 text-center text-success text-sm">
+          Document signed successfully. Below is a preview of how your signatures will appear.
+        </div>
+      )}
+
       <PDFViewer
         fileUrl={doc.file_url}
-        currentPage={currentPage}
-        onPageChange={setCurrentPage}
-        onTotalPages={setTotalPages}
         overlay={(pageIndex) => (
           <div className="absolute inset-0 pointer-events-none">
             {doc.signature_zones
@@ -104,30 +91,42 @@ export default function SignPage() {
               .map((zone) => (
                 <div
                   key={zone.id}
-                  className="signature-zone absolute flex items-center justify-center"
+                  className="absolute flex items-center justify-center border-2 border-dashed border-zone-border overflow-hidden"
                   style={{
                     left: `${zone.x}%`,
                     top: `${zone.y}%`,
                     width: `${zone.width}%`,
                     height: `${zone.height}%`,
+                    background: signatureData ? "transparent" : "var(--color-zone-fill)",
                   }}
                 >
-                  <span className="text-accent text-xs select-none">Sign here</span>
+                  {signatureData ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={signatureData}
+                      alt="Signature"
+                      className="w-full h-full object-contain"
+                      draggable={false}
+                    />
+                  ) : (
+                    <span className="text-accent text-xs select-none">Sign here</span>
+                  )}
                 </div>
               ))}
           </div>
         )}
       />
 
-      {/* Fixed bottom bar */}
-      <div className="border-t border-border bg-bg-card p-4 flex justify-center">
-        <button
-          onClick={() => setShowModal(true)}
-          className="h-12 px-8 rounded-xl bg-accent hover:bg-accent-hover text-white font-medium text-lg transition-colors"
-        >
-          Sign Document
-        </button>
-      </div>
+      {!signatureData && (
+        <div className="border-t border-border bg-bg-card p-4 flex justify-center">
+          <button
+            onClick={() => setShowModal(true)}
+            className="h-12 px-8 rounded-xl bg-accent hover:bg-accent-hover text-white font-medium text-lg transition-colors"
+          >
+            Sign Document
+          </button>
+        </div>
+      )}
 
       <SignatureModal
         open={showModal}

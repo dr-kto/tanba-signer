@@ -13,14 +13,12 @@ export default function ReviewPage() {
   const router = useRouter();
   const [doc, setDoc] = useState<DocType | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
   const [zones, setZones] = useState<SignatureZone[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [draggingZone, setDraggingZone] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  useEffect(() => {
+  const fetchDoc = useCallback(() => {
     fetch(`/api/documents/${id}`)
       .then((r) => r.json())
       .then((data) => {
@@ -31,12 +29,16 @@ export default function ReviewPage() {
       .catch(() => setLoading(false));
   }, [id]);
 
+  useEffect(() => {
+    fetchDoc();
+  }, [fetchDoc]);
+
   const handleDragStart = useCallback(
-    (e: React.MouseEvent, zoneId: string) => {
+    (e: React.MouseEvent, zoneId: string, overlayEl: HTMLElement) => {
       e.stopPropagation();
       const zone = zones.find((z) => z.id === zoneId);
       if (!zone) return;
-      const rect = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
+      const rect = overlayEl.getBoundingClientRect();
       setDraggingZone(zoneId);
       setDragOffset({
         x: ((e.clientX - rect.left) / rect.width) * 100 - zone.x,
@@ -130,7 +132,6 @@ export default function ReviewPage() {
 
   return (
     <div className="flex-1 flex flex-col">
-      {/* Header */}
       <div className="h-14 border-b border-border bg-bg-card flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
           <button onClick={() => router.push("/")} className="text-text-secondary hover:text-text-primary transition-colors">
@@ -144,6 +145,11 @@ export default function ReviewPage() {
           </span>
         </div>
         <div className="flex items-center gap-3">
+          {!isSigned && (
+            <button onClick={fetchDoc} className="h-9 px-4 rounded-xl border border-border text-text-secondary hover:bg-bg-card-hover text-sm transition-colors">
+              Refresh
+            </button>
+          )}
           {isSigned && (
             <button
               onClick={handleDownload}
@@ -158,7 +164,8 @@ export default function ReviewPage() {
 
       {!isSigned && (
         <div className="bg-bg-card/50 border-b border-border px-4 py-2 text-center text-text-secondary text-sm">
-          Waiting for signature. Share this link: {typeof window !== "undefined" && `${window.location.origin}/document/${id}/sign`}
+          Waiting for signature. Share this link:{" "}
+          <span className="text-accent select-all">{typeof window !== "undefined" && `${window.location.origin}/document/${id}/sign`}</span>
         </div>
       )}
 
@@ -168,12 +175,8 @@ export default function ReviewPage() {
         </div>
       )}
 
-      {/* PDF with signatures */}
       <PDFViewer
         fileUrl={doc.file_url}
-        currentPage={currentPage}
-        onPageChange={setCurrentPage}
-        onTotalPages={setTotalPages}
         overlay={(pageIndex, dims) => (
           <div
             className="absolute inset-0"
@@ -195,7 +198,11 @@ export default function ReviewPage() {
                     width: `${zone.width}%`,
                     height: `${zone.height}%`,
                   }}
-                  onMouseDown={(e) => isSigned && handleDragStart(e, zone.id)}
+                  onMouseDown={(e) => {
+                    if (isSigned) {
+                      handleDragStart(e, zone.id, e.currentTarget.parentElement as HTMLElement);
+                    }
+                  }}
                 >
                   {isSigned && doc.signature_data ? (
                     // eslint-disable-next-line @next/next/no-img-element
