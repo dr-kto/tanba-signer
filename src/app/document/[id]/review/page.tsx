@@ -131,8 +131,8 @@ export default function ReviewPage() {
   const isSigned = doc.status === "signed" && doc.signature_data;
 
   return (
-    <div className="flex-1 flex flex-col">
-      <div className="h-14 border-b border-border bg-bg-card flex items-center justify-between px-4">
+    <div className="h-screen flex flex-col">
+      <div className="h-14 border-b border-border bg-bg-card flex items-center justify-between px-4 flex-shrink-0 z-20">
         <div className="flex items-center gap-3">
           <button onClick={() => router.push("/")} className="text-text-secondary hover:text-text-primary transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -163,63 +163,65 @@ export default function ReviewPage() {
       </div>
 
       {!isSigned && (
-        <div className="bg-bg-card/50 border-b border-border px-4 py-2 text-center text-text-secondary text-sm">
+        <div className="bg-bg-card/50 border-b border-border px-4 py-2 text-center text-text-secondary text-sm flex-shrink-0">
           Waiting for signature. Share this link:{" "}
           <span className="text-accent select-all">{typeof window !== "undefined" && `${window.location.origin}/document/${id}/sign`}</span>
         </div>
       )}
 
       {isSigned && (
-        <div className="bg-bg-card/50 border-b border-border px-4 py-2 text-center text-text-secondary text-sm">
+        <div className="bg-bg-card/50 border-b border-border px-4 py-2 text-center text-text-secondary text-sm flex-shrink-0">
           Drag signatures to reposition them, then download.
         </div>
       )}
 
-      <PDFViewer
-        fileUrl={doc.file_url}
-        overlay={(pageIndex, dims) => (
-          <div
-            className="absolute inset-0"
-            onMouseMove={handleDragMove}
-            onMouseUp={handleDragEnd}
-            onMouseLeave={handleDragEnd}
-          >
-            {zones
-              .filter((z) => z.page === pageIndex)
-              .map((zone) => (
-                <div
-                  key={zone.id}
-                  className={`absolute border-2 border-dashed border-zone-border flex items-center justify-center overflow-hidden ${
-                    isSigned ? "cursor-grab active:cursor-grabbing" : ""
-                  }`}
-                  style={{
-                    left: `${zone.x}%`,
-                    top: `${zone.y}%`,
-                    width: `${zone.width}%`,
-                    height: `${zone.height}%`,
-                  }}
-                  onMouseDown={(e) => {
-                    if (isSigned) {
-                      handleDragStart(e, zone.id, e.currentTarget.parentElement as HTMLElement);
-                    }
-                  }}
-                >
-                  {isSigned && doc.signature_data ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={doc.signature_data}
-                      alt="Signature"
-                      className="w-full h-full object-contain pointer-events-none"
-                      draggable={false}
-                    />
-                  ) : (
-                    <span className="text-accent text-xs select-none">Awaiting signature</span>
-                  )}
-                </div>
-              ))}
-          </div>
-        )}
-      />
+      <div className="flex-1 overflow-hidden">
+        <PDFViewer
+          fileUrl={doc.file_url}
+          overlay={(pageIndex, dims) => (
+            <div
+              className="absolute inset-0"
+              onMouseMove={handleDragMove}
+              onMouseUp={handleDragEnd}
+              onMouseLeave={handleDragEnd}
+            >
+              {zones
+                .filter((z) => z.page === pageIndex)
+                .map((zone) => (
+                  <div
+                    key={zone.id}
+                    className={`absolute border-2 border-dashed border-zone-border flex items-center justify-center overflow-hidden ${
+                      isSigned ? "cursor-grab active:cursor-grabbing" : ""
+                    }`}
+                    style={{
+                      left: `${zone.x}%`,
+                      top: `${zone.y}%`,
+                      width: `${zone.width}%`,
+                      height: `${zone.height}%`,
+                    }}
+                    onMouseDown={(e) => {
+                      if (isSigned) {
+                        handleDragStart(e, zone.id, e.currentTarget.parentElement as HTMLElement);
+                      }
+                    }}
+                  >
+                    {isSigned && doc.signature_data ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={doc.signature_data}
+                        alt="Signature"
+                        className="w-full h-full object-contain pointer-events-none"
+                        draggable={false}
+                      />
+                    ) : (
+                      <span className="text-accent text-xs select-none">Awaiting signature</span>
+                    )}
+                  </div>
+                ))}
+            </div>
+          )}
+        />
+      </div>
     </div>
   );
 }

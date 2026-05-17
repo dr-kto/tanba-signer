@@ -98,8 +98,8 @@ export default function EditPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col">
-      <div className="h-14 border-b border-border bg-bg-card flex items-center justify-between px-4">
+    <div className="h-screen flex flex-col">
+      <div className="h-14 border-b border-border bg-bg-card flex items-center justify-between px-4 flex-shrink-0 z-20">
         <div className="flex items-center gap-3">
           <button onClick={() => router.push("/")} className="text-text-secondary hover:text-text-primary transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -121,78 +121,80 @@ export default function EditPage() {
         </div>
       </div>
 
-      <div className="bg-bg-card/50 border-b border-border px-4 py-2 text-center text-text-secondary text-sm">
+      <div className="bg-bg-card/50 border-b border-border px-4 py-2 text-center text-text-secondary text-sm flex-shrink-0">
         Draw rectangles on the PDF to mark where signatures should go. Click a zone to delete it.
       </div>
 
-      <PDFViewer
-        fileUrl={doc.file_url}
-        onTotalPages={setTotalPages}
-        overlay={(pageIndex, dims) => (
-          <div
-            className="absolute inset-0 cursor-crosshair"
-            onMouseDown={(e) => {
-              const pos = getRelativePos(e, dims);
-              setDrawing(true);
-              setDrawPage(pageIndex);
-              setDrawStart(pos);
-              setDrawCurrent(pos);
-            }}
-            onMouseMove={(e) => {
-              if (!drawing || drawPage !== pageIndex) return;
-              setDrawCurrent(getRelativePos(e, dims));
-            }}
-            onMouseUp={finishDrawing}
-            onTouchStart={(e) => {
-              const pos = getRelativePos(e, dims);
-              setDrawing(true);
-              setDrawPage(pageIndex);
-              setDrawStart(pos);
-              setDrawCurrent(pos);
-            }}
-            onTouchMove={(e) => {
-              if (!drawing || drawPage !== pageIndex) return;
-              setDrawCurrent(getRelativePos(e, dims));
-            }}
-            onTouchEnd={finishDrawing}
-          >
-            {zones
-              .filter((z) => z.page === pageIndex)
-              .map((zone) => (
-                <div
-                  key={zone.id}
-                  className="signature-zone absolute flex items-center justify-center group"
-                  style={{
-                    left: `${zone.x}%`,
-                    top: `${zone.y}%`,
-                    width: `${zone.width}%`,
-                    height: `${zone.height}%`,
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setZones((prev) => prev.filter((z) => z.id !== zone.id));
-                  }}
-                >
-                  <span className="text-accent text-xs opacity-0 group-hover:opacity-100 transition-opacity select-none">
-                    Click to remove
-                  </span>
-                </div>
-              ))}
+      <div className="flex-1 overflow-hidden">
+        <PDFViewer
+          fileUrl={doc.file_url}
+          onTotalPages={setTotalPages}
+          overlay={(pageIndex, dims) => (
+            <div
+              className="absolute inset-0 cursor-crosshair"
+              onMouseDown={(e) => {
+                const pos = getRelativePos(e, dims);
+                setDrawing(true);
+                setDrawPage(pageIndex);
+                setDrawStart(pos);
+                setDrawCurrent(pos);
+              }}
+              onMouseMove={(e) => {
+                if (!drawing || drawPage !== pageIndex) return;
+                setDrawCurrent(getRelativePos(e, dims));
+              }}
+              onMouseUp={finishDrawing}
+              onTouchStart={(e) => {
+                const pos = getRelativePos(e, dims);
+                setDrawing(true);
+                setDrawPage(pageIndex);
+                setDrawStart(pos);
+                setDrawCurrent(pos);
+              }}
+              onTouchMove={(e) => {
+                if (!drawing || drawPage !== pageIndex) return;
+                setDrawCurrent(getRelativePos(e, dims));
+              }}
+              onTouchEnd={finishDrawing}
+            >
+              {zones
+                .filter((z) => z.page === pageIndex)
+                .map((zone) => (
+                  <div
+                    key={zone.id}
+                    className="signature-zone absolute flex items-center justify-center group"
+                    style={{
+                      left: `${zone.x}%`,
+                      top: `${zone.y}%`,
+                      width: `${zone.width}%`,
+                      height: `${zone.height}%`,
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setZones((prev) => prev.filter((z) => z.id !== zone.id));
+                    }}
+                  >
+                    <span className="text-accent text-xs opacity-0 group-hover:opacity-100 transition-opacity select-none">
+                      Click to remove
+                    </span>
+                  </div>
+                ))}
 
-            {drawing && drawStart && drawCurrent && drawPage === pageIndex && (
-              <div
-                className="absolute border-2 border-accent bg-zone-fill pointer-events-none"
-                style={{
-                  left: `${Math.min(drawStart.x, drawCurrent.x)}%`,
-                  top: `${Math.min(drawStart.y, drawCurrent.y)}%`,
-                  width: `${Math.abs(drawCurrent.x - drawStart.x)}%`,
-                  height: `${Math.abs(drawCurrent.y - drawStart.y)}%`,
-                }}
-              />
-            )}
-          </div>
-        )}
-      />
+              {drawing && drawStart && drawCurrent && drawPage === pageIndex && (
+                <div
+                  className="absolute border-2 border-accent bg-zone-fill pointer-events-none"
+                  style={{
+                    left: `${Math.min(drawStart.x, drawCurrent.x)}%`,
+                    top: `${Math.min(drawStart.y, drawCurrent.y)}%`,
+                    width: `${Math.abs(drawCurrent.x - drawStart.x)}%`,
+                    height: `${Math.abs(drawCurrent.y - drawStart.y)}%`,
+                  }}
+                />
+              )}
+            </div>
+          )}
+        />
+      </div>
     </div>
   );
 }
