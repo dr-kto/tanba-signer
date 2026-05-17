@@ -140,10 +140,22 @@ export default function EditPage() {
       const signUrl = `${window.location.origin}/document/${id}/sign`;
       await navigator.clipboard.writeText(signUrl);
       setCopied(true);
-      setTimeout(() => setCopied(false), 3000);
+
+      // Save to recent documents in localStorage
+      if (typeof window !== "undefined") {
+        const recent = JSON.parse(localStorage.getItem("tanba_recent_docs") || "[]");
+        if (!recent.find((d: any) => d.id === id)) {
+          recent.unshift({ id, name: doc?.file_name || "Document", date: new Date().toISOString() });
+          localStorage.setItem("tanba_recent_docs", JSON.stringify(recent.slice(0, 10)));
+        }
+      }
+
+      setTimeout(() => {
+        setCopied(false);
+        router.push(`/document/${id}/review`);
+      }, 1500);
     } catch {
       alert("Failed to save");
-    } finally {
       setSaving(false);
     }
   };

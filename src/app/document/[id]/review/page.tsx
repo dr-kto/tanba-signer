@@ -33,7 +33,17 @@ export default function ReviewPage() {
 
   useEffect(() => {
     fetchDoc();
-  }, [fetchDoc]);
+
+    // Если документ еще не подписан, запускаем авто-обновление каждые 3 секунды
+    let interval: NodeJS.Timeout;
+    if (doc && doc.status !== 'signed') {
+      interval = setInterval(fetchDoc, 3000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [fetchDoc, doc?.status]);
 
   const handleDragStart = useCallback(
     (e: React.MouseEvent, zoneId: string) => {
