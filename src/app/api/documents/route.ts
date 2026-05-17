@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   }
 
   const id = uuidv4();
-  const filePath = `${id}/${file.name}`;
+  const filePath = `${id}/document.pdf`;
   const buffer = Buffer.from(await file.arrayBuffer());
 
   const { error: uploadError } = await supabase.storage
